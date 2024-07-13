@@ -5,7 +5,7 @@ go 1.22
 toolchain go1.22.2
 
 require (
-	github.com/cloudflare/cloudflare-go v0.86.0
+	github.com/cloudflare/cloudflare-go v0.99.0
 	github.com/go-resty/resty/v2 v2.11.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/traefik/traefik/v3 v3.0.1

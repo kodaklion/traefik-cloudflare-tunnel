@@ -146,6 +146,9 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 
 	// Update config with new ingress rules
 	cfg.Ingress = ingress
+	cfg.OriginRequest = cloudflare.OriginRequestConfig{
+		NoTLSVerify: true,
+	}
 	cfg, err = cf.TunnelConfigurationUpdate(ctx, cloudflare.TunnelConfigurationUpdateParams{
 		AccountID: os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
 		TunnelID:  os.Getenv("CLOUDFLARE_TUNNEL_ID"),
