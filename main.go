@@ -55,7 +55,7 @@ func main() {
 
 		for _, r := range poll.Routers {
 			// Set the default settings
-			tls_verify := true
+			no_tls_verify := false
 			http2 := false
 			traefik_endpoint := os.Getenv("TRAEFIK_SERVICE_ENDPOINT")
 
@@ -68,7 +68,7 @@ func main() {
 			if r.TLS.Options != "" {
 				if os.Getenv("TRAEFIK_PARSE_TLS") == "true" {
 					// Add support for HTTPS2 and do not verify TLS origin certificates
-					tls_verify = false
+					no_tls_verify = true
 					http2 = true
 				} else {
 					// Don't add the route
@@ -88,10 +88,10 @@ func main() {
 			for _, domain := range domains {
 				all_domains = append(all_domains, domain)
 				log.WithFields(log.Fields{
-					"domain":     domain,
-					"service":    traefik_endpoint,
-					"tls_verify": tls_verify,
-					"HTTP2":      http2,
+					"domain":        domain,
+					"service":       traefik_endpoint,
+					"no_tls_verify": no_tls_verify,
+					"HTTP2":         http2,
 				}).Info("adding tunnel ingress route")
 
 				// Create the ingress rule to use
@@ -100,7 +100,7 @@ func main() {
 					Hostname: domain,
 					OriginRequest: &cloudflare.OriginRequestConfig{
 						HTTPHostHeader: &domain,
-						NoTLSVerify:    &tls_verify,
+						NoTLSVerify:    &no_tls_verify,
 						Http2Origin:    &http2,
 					},
 				}
