@@ -104,6 +104,11 @@ func main() {
 
 		}
 
+		// add catch-all rule
+		ingress = append(ingress, cloudflare.UnvalidatedIngressRule{
+			Service: "http_status:404",
+		})
+
 		err = updateTunnels(ctx, cf, ingress)
 		if err != nil {
 			log.Fatal(err)
