@@ -191,9 +191,13 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 			TTL:     1,
 		}
 
-		r, err := cf.GetDNSRecord(ctx, zoneResource, i.Hostname)
+		recs, _, err := cf.ListDNSRecords(ctx, zoneResource, cloudflare.ListDNSRecordsParams{Name: i.Hostname})
+
 		if err != nil {
-			log.Info("err checking DNS records, %s", err.Error())
+			return fmt.Errorf("err checking DNS records, %s", err.Error())
+		}
+
+		if len(recs) == 0 {
 			_, err := cf.CreateDNSRecord(ctx, zoneResource, rec)
 			if err != nil {
 				return fmt.Errorf("unable to create DNS record, %s", err.Error())
@@ -204,8 +208,9 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 			continue
 		}
 
-		if r.Content != rec.Content {
+		if recs[0].Content != rec.Content {
 			update_params := cloudflare.UpdateDNSRecordParams{
+				ID:      recs[0].ID,
 				Type:    "CNAME",
 				Name:    i.Hostname,
 				Content: fmt.Sprintf("%s.cfargotunnel.com", os.Getenv("CLOUDFLARE_TUNNEL_ID")),
