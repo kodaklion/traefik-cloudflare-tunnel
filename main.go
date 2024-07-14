@@ -51,17 +51,27 @@ func main() {
 		cache = poll.Routers
 
 		ingress := []cloudflare.UnvalidatedIngressRule{}
+		var all_domains []string
 
 		for _, r := range poll.Routers {
+			// Set the default settings
+			tls_verify := true
+			http2 := false
+			traefik_endpoint := os.Getenv("TRAEFIK_SERVICE_ENDPOINT")
+
 			// Only enabled routes
 			if r.Status != "enabled" {
 				continue
 			}
 
-			// Skip any routes with TLS configured
-			if os.Getenv("TRAEFIK_PARSE_TLS") != "true" {
-				if r.TLS.CertResolver != "" {
-					// TODO: use better indicator for TLS
+			// See if TLS authentication should be used
+			if r.TLS.Options != "" {
+				if os.Getenv("TRAEFIK_PARSE_TLS") == "true" {
+					// Add support for HTTPS2 and do not verify TLS origin certificates
+					tls_verify = false
+					http2 = true
+				} else {
+					// Don't add the route
 					continue
 				}
 			}
@@ -76,40 +86,37 @@ func main() {
 			}
 
 			for _, domain := range domains {
+				all_domains = append(all_domains, domain)
 				log.WithFields(log.Fields{
-					"domain":  domain,
-					"service": os.Getenv("TRAEFIK_SERVICE_ENDPOINT"),
-				}).Info("upserting tunnel")
-
-				no_tls := false
-				http2 := false
-				if os.Getenv("TRAEFIK_PARSE_TLS") == "true" {
-					// Add support for HTTPS2 and do not verify TLS origin certificates
-					no_tls = true
-					http2 = true
-				}
+					"domain":     domain,
+					"service":    traefik_endpoint,
+					"tls_verify": tls_verify,
+					"HTTP2":      http2,
+				}).Info("adding tunnel ingress route")
 
 				// Create the ingress rule to use
 				ingressRule := cloudflare.UnvalidatedIngressRule{
-					Service:  os.Getenv("TRAEFIK_SERVICE_ENDPOINT"),
+					Service:  traefik_endpoint,
 					Hostname: domain,
 					OriginRequest: &cloudflare.OriginRequestConfig{
 						HTTPHostHeader: &domain,
-						NoTLSVerify:    &no_tls,
+						NoTLSVerify:    &tls_verify,
 						Http2Origin:    &http2,
 					},
 				}
+
+				//Append to the list
 				ingress = append(ingress, ingressRule)
 			}
-
 		}
 
-		// add catch-all rule
+		// add catch-all rule (required)
 		ingress = append(ingress, cloudflare.UnvalidatedIngressRule{
 			Service: "http_status:404",
 		})
 
-		err = updateTunnels(ctx, cf, ingress)
+		// Call the update tunnels
+		err = updateTunnels(ctx, cf, ingress, all_domains)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -147,8 +154,8 @@ func pollTraefikRouters(client *resty.Client) (ch chan PollResponse) {
 	return
 }
 
-func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare.UnvalidatedIngressRule) error {
-	// Create the account resource context container
+func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare.UnvalidatedIngressRule, all_domains []string) error {
+	// Create the account resource context containers for the account and zone
 	accountResource := cloudflare.AccountIdentifier(os.Getenv("CLOUDFLARE_ACCOUNT_ID"))
 	zoneResource := cloudflare.ZoneIdentifier(os.Getenv("CLOUDFLARE_ZONE_ID"))
 
@@ -183,6 +190,7 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 
 		var proxied bool = true
 
+		// Create the DNS creation parameter
 		rec := cloudflare.CreateDNSRecordParams{
 			Type:    "CNAME",
 			Name:    i.Hostname,
@@ -191,6 +199,7 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 			TTL:     1,
 		}
 
+		// Fetch the current DNS records for the hostname
 		recs, _, err := cf.ListDNSRecords(ctx, zoneResource, cloudflare.ListDNSRecordsParams{Name: i.Hostname})
 
 		if err != nil {
@@ -208,6 +217,7 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 			continue
 		}
 
+		// Confirm if the record changed
 		if recs[0].Content != rec.Content {
 			update_params := cloudflare.UpdateDNSRecordParams{
 				ID:      recs[0].ID,
@@ -227,7 +237,30 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 		}
 	}
 
-	// TODO: delete CNAME records with content that is _not_ in our list
+	if os.Getenv("CLOUDFLARE_DELETE_RECORDS") == "true" {
+		// Find all domain entries using the Cloudflare tunnel
+		content_recs, _, err := cf.ListDNSRecords(ctx, zoneResource, cloudflare.ListDNSRecordsParams{
+			Content: fmt.Sprintf("%s.cfargotunnel.com", os.Getenv("CLOUDFLARE_TUNNEL_ID")),
+		})
+
+		if err != nil {
+			return fmt.Errorf("error checking DNS records to clean up, %s", err.Error())
+		}
+
+		for _, i := range content_recs {
+			if !contains(all_domains, i.Name) {
+				log.WithFields(log.Fields{
+					"domain": i.Name,
+				}).Info("removing excess DNS record")
+
+				// Delete the domain from Cloudflare
+				err := cf.DeleteDNSRecord(ctx, zoneResource, i.ID)
+				if err != nil {
+					return fmt.Errorf("error deleting DNS record, %s", err.Error())
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -257,6 +290,7 @@ type Router struct {
 	Middlewares []string `json:"middlewares,omitempty"`
 	TLS         struct {
 		CertResolver string `json:"certResolver"`
+		Options      string `json:"options"`
 	} `json:"tls,omitempty"`
 	Priority int `json:"priority,omitempty"`
 }
