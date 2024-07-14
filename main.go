@@ -178,14 +178,6 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 
 		var proxied bool = true
 
-		record := cloudflare.DNSRecord{
-			Type:    "CNAME",
-			Name:    i.Hostname,
-			Content: fmt.Sprintf("%s.cfargotunnel.com", os.Getenv("CLOUDFLARE_TUNNEL_ID")),
-			TTL:     1,
-			Proxied: &proxied,
-		}
-
 		rec := cloudflare.CreateDNSRecordParams{
 			Type:    "CNAME",
 			Name:    i.Hostname,
@@ -196,18 +188,18 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 
 		r, err := cf.GetDNSRecord(ctx, zoneResource, i.Hostname)
 		if err != nil {
-			return fmt.Errorf("err checking DNS records, %s", err.Error())
+			log.Info("err checking DNS records, %s", err.Error())
 			_, err := cf.CreateDNSRecord(ctx, zoneResource, rec)
 			if err != nil {
 				return fmt.Errorf("unable to create DNS record, %s", err.Error())
 			}
 			log.WithFields(log.Fields{
-				"domain": record.Name,
+				"domain": rec.Name,
 			}).Info("DNS created")
 			continue
 		}
 
-		if r.Content != record.Content {
+		if r.Content != rec.Content {
 			update_params := cloudflare.UpdateDNSRecordParams{
 				Type:    "CNAME",
 				Name:    i.Hostname,
@@ -220,7 +212,7 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 				return fmt.Errorf("could not update record for %s, %s", i.Hostname, err)
 			}
 			log.WithFields(log.Fields{
-				"domain": record.Name,
+				"domain": rec.Name,
 			}).Info("DNS updated")
 		}
 	}
