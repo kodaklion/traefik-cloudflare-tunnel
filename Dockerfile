@@ -1,10 +1,15 @@
-FROM golang:1.17 as builder
+FROM golang:1.22
 
-# Create image from scratch
-FROM scratch
+# Set destination for COPY
+WORKDIR /app
 
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY traefik-cloudflare-tunnel /traefik-cloudflare-tunnel
+COPY *.go ./
 
-ENTRYPOINT [ "/traefik-cloudflare-tunnel" ]
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /traefik-cloudflare-tunnel
+
+# Run
+ENTRYPOINT ["/traefik-cloudflare-tunnel"]
