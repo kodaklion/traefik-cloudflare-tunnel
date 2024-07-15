@@ -1,13 +1,13 @@
-FROM golang:1.22
-
+# The build stage
+FROM golang:1.22-buster as builder
 WORKDIR /app
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /traefik-cloudflare-tunnel
 
-COPY go.mod go.sum ./
-RUN go mod download
+# The run stage
+FROM scratch
+WORKDIR /app
+COPY --from=builder /app/traefik-cloudflare-tunnel .
 
-COPY *.go ./
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o /traefik-cloudflare-tunnel
-
-# Run
-ENTRYPOINT ["/traefik-cloudflare-tunnel"]
+# Run image
+CMD ["./traefik-cloudflare-tunnel"]
