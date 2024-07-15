@@ -1,8 +1,8 @@
 # The build stage
-FROM golang:1.22 as builder
+FROM golang:1.22 AS builder
 WORKDIR /app
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /traefik-cloudflare-tunnel
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/traefik-cloudflare-tunnel
 
 # The run stage
 FROM scratch
