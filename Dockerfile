@@ -8,6 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/traefik-clou
 FROM scratch
 WORKDIR /app
 COPY --from=builder /app/traefik-cloudflare-tunnel .
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Run image
 CMD ["./traefik-cloudflare-tunnel"]
