@@ -25,7 +25,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/miekg/dns v1.1.59 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/traefik/paerser v0.2.0 // indirect
 	github.com/vulcand/predicate v1.2.0 // indirect
