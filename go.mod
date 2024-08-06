@@ -1,4 +1,4 @@
-module justmiles/traefik-cloudflare-tunnel
+module kodaklion/traefik-cloudflare-tunnel
 
 go 1.22
 
